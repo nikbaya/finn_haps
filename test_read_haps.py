@@ -15,7 +15,6 @@ import nltk
 
 
 parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument('--w',type=int, required=False, default=10, help='width of window in SNPs')
 parser.add_argument('--n_w',type=int, required=False, default=1, help='number of windows to use (use -1 to use all windows on chr)')
 parser.add_argument('--maf',type=float, required=False, default=0.01, help='MAF to filter SNPs')
 parser.add_argument('--info',type=float, required=False, default=0.9, help='info score to filter SNPs')
@@ -26,7 +25,6 @@ parser.add_argument('--print_only',action='store_true', default=False, help='whe
 parser.add_argument('--overwrite',action='store_true', default=False, help='whether to overwrite previously written outfile')
 args = parser.parse_args()
 
-w = args.w
 n_w = args.n_w
 maf = args.maf
 info = args.info
@@ -37,15 +35,16 @@ print_only = args.print_only
 overwrite = args.overwrite
 
 
-fname=f'/fs/projects/finn_haps/haps/FINRISK_R1_chr{chr}.haps'
+#fname=f'/fs/projects/finn_haps/haps/FINRISK_R1_chr{chr}.haps'
 #fname=f'/homes/nbaya/finn_haps/haps/FINRISK_R1_chr{chr}.haps.head10'
+fname=f'/homes/nbaya/finn_haps/haps/FINRISK_R1_chr{chr}.haps.tail1000'
 
 snpstats = pd.read_table(f'/fs/projects/finn_haps/snp_stats/FINRISK_R1_chr{chr}.snp_stats',
 			delim_whitespace=True)
 
 
 
-def hap_patterns(w=10, maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, sampling_frac=0,
+def hap_patterns(maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, sampling_frac=0,
 		print_only=False, overwrite=False):
 	r"""
 	Look at patterns in SNPs (passing MAF of `maf`) of window width `w`, for `n_w` windows.
@@ -59,12 +58,12 @@ def hap_patterns(w=10, maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, samp
 	w_lim = get_windows(chr=chr, cm_w=cm_w, write=True)
 	if n_w is -1:
                 print(f'... reading all windows of width {cm_w} for chr {chr} ...')
-                n_w = len(w_lim)
+                n_w = len(w_lim)-1
 	n_keep = int(sampling_frac*n_w)
 	keep_sorted_dict = [1]*n_keep+[0]*(n_w-n_keep)
 	random.shuffle(keep_sorted_dict)
 	if not print_only:
-		fname_out = f'/homes/nbaya/finn_haps/haps/out.chr{chr}.w_{w}.n_w_{n_w}.maf_{maf}.cm_w_{cm_w}.info_{info}.txt'
+		fname_out = f'/homes/nbaya/finn_haps/haps/out.chr{chr}.n_w_{n_w}.maf_{maf}.cm_w_{cm_w}.info_{info}.txt'
 		if os.path.isfile(fname_out):
 			if overwrite:
 				os.remove(fname_out)
@@ -93,7 +92,10 @@ def hap_patterns(w=10, maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, samp
 					snp_idx += 1
 					if len(full_line)==0:
 						print(f'reached end of file')
-						return None
+						w_ct = n_w
+						snp_idx -= 1
+						break
+						#return None
 					metadata = full_line[:6]
 					line = full_line[6:]
 					position = int(metadata[3])
@@ -127,7 +129,7 @@ def hap_patterns(w=10, maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, samp
 			sorted_dict = sorted((val,key) for (key,val) in pattern_dict.items())[::-1]
 			freq = cts/cts.sum()
 			n_eff = 1/np.linalg.norm(freq)**2
-			print(f'window #{w_ct}, len={len(sorted_dict)}, n_eff={n_eff}\n{sorted_dict}')
+			print(f'window #{w_ct} [{cm_w*w_idx} cM, {cm_w*(w_idx+1)}], len={len(sorted_dict)}, n_eff={n_eff}\n{sorted_dict}')
 			window_str = f'w_idx {w_idx}\tsnps:{",".join(str(idx) for idx in snp_idx_ls)}\t'
 			window_str += f'maf:{",".join(str(x) for x in maf_ls)}\t' #sorted_dict:{sorted_dict}\t'
 			window_str += f'n_eff:{n_eff}'
@@ -184,7 +186,7 @@ if __name__=='__main__':
 	start = dt.now()
 	hap_patterns(cm_w = cm_w, n_w=n_w, maf=maf, sampling_frac=sampling_frac, snpstats=snpstats,
 		     print_only=print_only, overwrite=overwrite, info=info)
-	print(f'Parameters: window ("word") length: {w}, number of SNP windows: {n_w}, maf: {maf}')
+	print(f'Parameters: window ("word") length: {cm_w} cM, number of SNP windows: {n_w}, maf: {maf}')
 	print(f'elapsed: {round(((dt.now()-start).seconds)/60, 2)} min')
 
 
