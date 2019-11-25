@@ -35,9 +35,9 @@ print_only = args.print_only
 overwrite = args.overwrite
 
 
-#fname=f'/fs/projects/finn_haps/haps/FINRISK_R1_chr{chr}.haps'
+fname=f'/fs/projects/finn_haps/haps/FINRISK_R1_chr{chr}.haps'
 #fname=f'/homes/nbaya/finn_haps/haps/FINRISK_R1_chr{chr}.haps.head10'
-fname=f'/homes/nbaya/finn_haps/haps/FINRISK_R1_chr{chr}.haps.tail1000'
+#fname=f'/homes/nbaya/finn_haps/haps/FINRISK_R1_chr{chr}.haps.tail1000'
 
 snpstats = pd.read_table(f'/fs/projects/finn_haps/snp_stats/FINRISK_R1_chr{chr}.snp_stats',
 			delim_whitespace=True)
@@ -63,7 +63,7 @@ def hap_patterns(maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, sampling_f
 	keep_sorted_dict = [1]*n_keep+[0]*(n_w-n_keep)
 	random.shuffle(keep_sorted_dict)
 	if not print_only:
-		fname_out = f'/homes/nbaya/finn_haps/haps/out.chr{chr}.n_w_{n_w}.maf_{maf}.cm_w_{cm_w}.info_{info}.txt'
+		fname_out = f'/homes/nbaya/finn_haps/haps/out.chr{chr}.cm_w_{cm_w}.n_w_{"all" if n_w is len(w_lim)-1 else n_w}.maf_{maf}.info_{info}.txt'
 		if os.path.isfile(fname_out):
 			if overwrite:
 				os.remove(fname_out)
@@ -113,7 +113,7 @@ def hap_patterns(maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, sampling_f
 					continue
 				outside = False
 				snp_maf = snpstats_dict[position]
-				print(f'SNP {position}  MAF:{snp_maf} w_idx:{w_idx}') # NOTE: SNP is 1-indexed
+				# print(f'SNP {position}  MAF:{snp_maf} w_idx:{w_idx}') # NOTE: SNP is 1-indexed
 				lines += [line]
 				maf_ls += [snp_maf]
 				snp_idx_ls += [snp_idx]
@@ -127,9 +127,10 @@ def hap_patterns(maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, sampling_f
 			cts = fit.sum(axis=0).A1
 			pattern_dict = dict(zip(vocab, cts))
 			sorted_dict = sorted((val,key) for (key,val) in pattern_dict.items())[::-1]
+			print(sorted_dict)
 			freq = cts/cts.sum()
 			n_eff = 1/np.linalg.norm(freq)**2
-			print(f'window #{w_ct} [{cm_w*w_idx} cM, {cm_w*(w_idx+1)}], len={len(sorted_dict)}, n_eff={n_eff}\n{sorted_dict}')
+			print(f'window #{w_ct} [{cm_w*w_idx} cM, {cm_w*(w_idx+1)}], len={len(sorted_dict)}, n_eff={n_eff}') #\n{sorted_dict}')
 			window_str = f'w_idx {w_idx}\tsnps:{",".join(str(idx) for idx in snp_idx_ls)}\t'
 			window_str += f'maf:{",".join(str(x) for x in maf_ls)}\t' #sorted_dict:{sorted_dict}\t'
 			window_str += f'n_eff:{n_eff}'
@@ -145,6 +146,22 @@ def hap_patterns(maf=0.01, cm_w=0.01, info=0.9, n_w=1, snpstats=None, sampling_f
 	f.close()
 	print(f'read {snp_idx+1} SNPs, of which {n_snps_final} were included in words')
 	print(f'SNPs missing stats: {missing_stats}')
+
+def collapse(sorted_ls, hd=1):
+	
+	if hd is None or hd==0:
+		return sorted_ls
+	collapsed = []
+	while len(sorted_ls)>0:
+		top_ct, top_word = sorted_ls.pop(0)
+		for entry in sorted_ls:
+			ct, word = entry
+			if hamming(top_word, word)<=hd:
+				sorted_ls.remove(entry)
+				top_ct += ct
+		collapsed += [(top_ct, top_word)]
+	return collapsed
+
 
 def get_windows(chr, cm_w, write=False):
 	r"""
